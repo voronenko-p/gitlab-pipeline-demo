@@ -1,0 +1,50 @@
+image: prudents/gitlab-node-runner:latest
+stages:
+  - build
+  - publish
+
+build:
+  stage: build
+  script:
+  -  echo step build stage build
+  - echo zzz > version.properties
+  artifacts:
+    paths:
+        - version.properties
+    expire_in: 1 week
+
+publish_pr:
+  stage: publish
+  image: prudents/gitlab-node-runner:ansible
+  dependencies:
+    - build
+  before_script:
+    - export ENVIRONMENT=pr
+    - export ANSIBLE_HOST_KEY_CHECKING=False
+  script:
+    - export ARTIFACT_VERSION=$(cat version.txt)
+    - cat version.properties
+  when: manual
+
+
+publish_staging:
+  stage: publish
+  image: prudents/gitlab-node-runner:ansible
+  dependencies:
+    - build
+  before_script:
+    - export ENVIRONMENT=staging
+    - export ANSIBLE_HOST_KEY_CHECKING=False
+  script:
+    - export ARTIFACT_VERSION=$(cat version.txt)
+    - cat version.properties
+  when: manual    
+
+
+publish_pr_test:
+  stage: publish
+  image: prudents/gitlab-node-runner:ansible
+  script:
+    - printenv
+  only:
+  - merge_requests
