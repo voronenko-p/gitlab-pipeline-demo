@@ -68,6 +68,7 @@ deploy_merge_request:
   stage: preview
   script:
     - echo "Deploy a merge request environment"
+    - printenv
   environment:
     name: review/$CI_COMMIT_REF_NAME
     url: https://$CI_ENVIRONMENT_SLUG.example.com
@@ -79,6 +80,7 @@ deploy_staging:
   stage: preview
   script:
     - echo "Deploy to staging server"
+    - printenv
   environment:
     name: staging
     url: https://staging.example.com
@@ -90,6 +92,7 @@ deploy_prod:
   stage: production
   script:
     - echo "Deploy to production server"
+    - printenv
   environment:
     name: production
     url: https://example.com
