@@ -1,50 +1,98 @@
 image: prudents/gitlab-node-runner:latest
 stages:
   - build
-  - publish
+  - test
+  - preview
+  - production
 
-build:
+# Hidden keys and anchors to reuse code.
+# With them it is possible to reference the same block multiple times,
+# without duplication.
+
+.build_template: &build_template
   stage: build
   script:
   -  echo step build stage build
   - echo zzz > version.properties
-  artifacts:
-    paths:
-        - version.properties
-    expire_in: 1 week
 
-publish_pr:
+.test_template: &test_template
+  stage: test
+  script:
+  -  echo step test stage test
+  - echo zzz > version.properties
+
+.deploy_template: &deploy_template
   stage: publish
   image: prudents/gitlab-node-runner:ansible
-  dependencies:
-    - build
   before_script:
     - export ENVIRONMENT=pr
     - export ANSIBLE_HOST_KEY_CHECKING=False
   script:
     - export ARTIFACT_VERSION=$(cat version.txt)
     - cat version.properties
-  when: manual
 
 
-publish_staging:
-  stage: publish
-  image: prudents/gitlab-node-runner:ansible
-  dependencies:
-    - build
-  before_script:
-    - export ENVIRONMENT=staging
-    - export ANSIBLE_HOST_KEY_CHECKING=False
+# Each job definition that begins with a period is ignored. Therefore, .build_template does not define
+# active and executable tasks. This feature is called hidden keys.
+# YAML allows you to reference other parts of yourself to avoid copying and pasting, thereby reducing the code. This resource is called anchor.
+# Basically the &build_template is the “copy” and the *build_template is the “paste”. So:
+
+
+# When calling “<<: *build_template” we are saying “do everything the job template does”.
+# And everything that is described again or is declared, without existing in the anchor, is overwritten.
+# That can be a script, before_script, after_script, variable … whatever.
+
+build:
+  <<: *build_template
+  stage: build
+  artifacts:
+    paths:
+        - version.properties
+    expire_in: 1 week
+
+deploy_review:
+  <<: *deploy_template
+  stage: preview
   script:
-    - export ARTIFACT_VERSION=$(cat version.txt)
-    - cat version.properties
-  when: manual    
-
-
-publish_pr_test:
-  stage: publish
-  image: prudents/gitlab-node-runner:ansible
-  script:
-    - printenv
+    - echo "Deploy a review environment"
+  environment:
+    name: review/$CI_COMMIT_REF_NAME
+    url: https://$CI_ENVIRONMENT_SLUG.example.com
   only:
-  - merge_requests
+    - branches
+  except:
+    - master
+
+deploy_merge_request:
+  <<: *deploy_template
+  stage: preview
+  script:
+    - echo "Deploy a merge request environment"
+  environment:
+    name: review/$CI_COMMIT_REF_NAME
+    url: https://$CI_ENVIRONMENT_SLUG.example.com
+  only:
+    - merge_requests
+
+deploy_staging:
+  <<: *deploy_template
+  stage: preview
+  script:
+    - echo "Deploy to staging server"
+  environment:
+    name: staging
+    url: https://staging.example.com
+  only:
+  - master
+
+deploy_prod:
+  <<: *deploy_template
+  stage: production
+  script:
+    - echo "Deploy to production server"
+  environment:
+    name: production
+    url: https://example.com
+  when: manual
+  only:
+  - master
